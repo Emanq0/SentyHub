@@ -1,0 +1,232 @@
+-- Services
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
+local camera = game.Workspace.CurrentCamera
+local espEnabled = false
+local autoAimEnabled = false
+
+-- UI Setup
+local ScreenGui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+local MainFrame = Instance.new("Frame")
+local Title = Instance.new("TextLabel")
+local SubTitle = Instance.new("TextLabel")
+local AutoAimButton = Instance.new("TextButton")
+local ESPButton = Instance.new("TextButton")
+local OpenCloseButton = Instance.new("TextButton")
+
+-- Properties for GUI
+ScreenGui.Name = "SentyHubUI"
+MainFrame.Name = "MainFrame"
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+MainFrame.Position = UDim2.new(0.3, 0, 0.3, 0)
+MainFrame.Size = UDim2.new(0, 300, 0, 300)
+MainFrame.Visible = true
+MainFrame.ClipsDescendants = true
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.BorderSizePixel = 0
+
+-- Round corners for MainFrame
+local UICorner = Instance.new("UICorner", MainFrame)
+UICorner.CornerRadius = UDim.new(0, 10)
+
+-- Draggable GUI
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+local function updateDrag(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+MainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+userInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        updateDrag(input)
+    end
+end)
+
+-- Title
+Title.Name = "Title"
+Title.Parent = MainFrame
+Title.Text = "SENTY HUB"
+Title.BackgroundTransparency = 1
+Title.Size = UDim2.new(1, 0, 0.2, 0)
+Title.Font = Enum.Font.SourceSansBold
+Title.TextSize = 24
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+-- Subtitle
+SubTitle.Name = "SubTitle"
+SubTitle.Parent = MainFrame
+SubTitle.Text = "Made by Codez with the help of Crimsonified"
+SubTitle.BackgroundTransparency = 1
+SubTitle.Position = UDim2.new(0, 0, 0.2, 0)
+SubTitle.Size = UDim2.new(1, 0, 0.1, 0)
+SubTitle.Font = Enum.Font.SourceSans
+SubTitle.TextSize = 14
+SubTitle.TextColor3 = Color3.fromRGB(200, 200, 200)
+
+-- Auto-Aim Button
+AutoAimButton.Name = "AutoAimButton"
+AutoAimButton.Parent = MainFrame
+AutoAimButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+AutoAimButton.Position = UDim2.new(0.1, 0, 0.4, 0)
+AutoAimButton.Size = UDim2.new(0.8, 0, 0.15, 0)
+AutoAimButton.Text = "Auto-Aim: OFF"
+AutoAimButton.Font = Enum.Font.SourceSans
+AutoAimButton.TextSize = 18
+AutoAimButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+local autoAimButtonUICorner = Instance.new("UICorner", AutoAimButton)
+autoAimButtonUICorner.CornerRadius = UDim.new(0, 5)
+
+-- ESP Button
+ESPButton.Name = "ESPButton"
+ESPButton.Parent = MainFrame
+ESPButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+ESPButton.Position = UDim2.new(0.1, 0, 0.6, 0)
+ESPButton.Size = UDim2.new(0.8, 0, 0.15, 0)
+ESPButton.Text = "ESP: OFF"
+ESPButton.Font = Enum.Font.SourceSans
+ESPButton.TextSize = 18
+ESPButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+local espButtonUICorner = Instance.new("UICorner", ESPButton)
+espButtonUICorner.CornerRadius = UDim.new(0, 5)
+
+-- Open/Close Button (Press Z)
+OpenCloseButton.Name = "OpenCloseButton"
+OpenCloseButton.Parent = MainFrame
+OpenCloseButton.BackgroundTransparency = 1
+OpenCloseButton.Position = UDim2.new(0, 0, 1, 0)
+OpenCloseButton.Size = UDim2.new(0, 20, 0, 20)
+OpenCloseButton.Text = "Z"
+
+-- Fade-In and Fade-Out Logic
+local guiVisible = true
+local function toggleGUI()
+    if guiVisible then
+        -- Fade Out
+        for i = 0, 1, 0.05 do
+            MainFrame.BackgroundTransparency = i
+            wait(0.01)
+        end
+        MainFrame.Visible = false
+    else
+        MainFrame.Visible = true
+        -- Fade In
+        for i = 1, 0, -0.05 do
+            MainFrame.BackgroundTransparency = i
+            wait(0.01)
+        end
+    end
+    guiVisible = not guiVisible
+end
+
+userInputService.InputBegan:Connect(function(input)
+    if input.KeyCode == Enum.KeyCode.Z then
+        toggleGUI()
+    end
+end)
+
+-- Aimlock Script (Your working version)
+local function getNearestPlayer()
+    local nearestPlayer = nil
+    local shortestDistance = math.huge
+
+    for _, targetPlayer in pairs(game.Players:GetPlayers()) do
+        if targetPlayer ~= player and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
+            local targetHead = targetPlayer.Character.Head
+            local screenPosition, onScreen = camera:WorldToScreenPoint(targetHead.Position)
+            if onScreen then
+                local mousePosition = Vector2.new(mouse.X, mouse.Y)
+                local distance = (Vector2.new(screenPosition.X, screenPosition.Y) - mousePosition).magnitude
+
+                if distance < shortestDistance and distance < 200 then
+                    shortestDistance = distance
+                    nearestPlayer = targetPlayer
+                end
+            end
+        end
+    end
+
+    return nearestPlayer
+end
+
+local function lockAim()
+    local targetPlayer = getNearestPlayer()
+    if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("Head") then
+        local targetHead = targetPlayer.Character.Head
+        camera.CFrame = CFrame.new(camera.CFrame.Position, targetHead.Position)
+    end
+end
+
+-- Toggle Auto Aim
+AutoAimButton.MouseButton1Click:Connect(function()
+    autoAimEnabled = not autoAimEnabled
+    AutoAimButton.Text = autoAimEnabled and "Auto-Aim: ON" or "Auto-Aim: OFF"
+end)
+
+runService.RenderStepped:Connect(function()
+    if autoAimEnabled and userInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2) then
+        lockAim()
+    end
+end)
+
+-- ESP Functionality
+local function updateESP()
+    for _, targetPlayer in pairs(game.Players:GetPlayers()) do
+        if targetPlayer ~= player and targetPlayer.Character then
+            for _, part in pairs(targetPlayer.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    if espEnabled then
+                        if not part:FindFirstChild("ESPHighlight") then
+                            local highlight = Instance.new("BoxHandleAdornment", part)
+                            highlight.Adornee = part
+                            highlight.AlwaysOnTop = true
+                            highlight.ZIndex = 5
+                            highlight.Size = part.Size
+                            highlight.Color3 = Color3.new(1, 0, 0)
+                            highlight.Transparency = 0.5
+                            highlight.Name = "ESPHighlight"
+                        end
+                    else
+                        if part:FindFirstChild("ESPHighlight") then
+                            part.ESPHighlight:Destroy()
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- Toggle ESP Button
+ESPButton.MouseButton1Click:Connect(function()
+    espEnabled = not espEnabled
+    ESPButton.Text = espEnabled and "ESP: ON" or "ESP: OFF"
+    updateESP()
+end)
+
+-- Keep ESP updated for
